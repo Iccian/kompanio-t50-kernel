@@ -1,4 +1,4 @@
-name: Build Kompanio 500 / AAUW T50 Kernel
+name: Build Android 4.19 Kernel
 
 on:
   workflow_dispatch:
@@ -17,27 +17,27 @@ jobs:
         sudo apt-get install -y \
           build-essential libncurses-dev bison flex libssl-dev libelf-dev \
           crossbuild-essential-arm64 crossbuild-essential-armhf bc rsync \
-          git wget ccache libssl-dev python3 clang lld
+          git wget ccache python3 clang lld
 
     - name: Fetch Android Clang Toolchain (r383902 / Clang 11.0.1)
       run: |
         mkdir -p clang-toolchain
         git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 --branch android-11.0.0_r1 clang-toolchain
 
-    - name: Clone MediaTek MT6771 / Kompanio 500 Kernel Source
+    - name: Clone Kernel Source
       run: |
-        git clone https://github.com/unlegacy-android/android_kernel_mediatek_mt6771 --depth=1 kernel-source
+        git clone https://android.googlesource.com/kernel/common --branch deprecated/android-4.19-stable --depth=1 kernel-source
 
-    - name: Inject Tablet Blueprint (custom_defconfig)
+    - name: Inject Custom Configuration
       run: |
         mkdir -p kernel-source/arch/arm64/configs
-        cp custom_defconfig kernel-source/arch/arm64/configs/aauw_t50_defconfig
+        cp custom_defconfig kernel-source/arch/arm64/configs/custom_defconfig
 
     - name: Compile Kernel
       run: |
         cd kernel-source
         
-        # Export Environment Variables for Android Clang Build
+        # Environment setup for Clang cross-compilation
         export PATH="$(pwd)/../clang-toolchain/clang-r383902/bin:$PATH"
         export ARCH=arm64
         export SUBARCH=arm64
@@ -52,16 +52,14 @@ jobs:
         export OBJDUMP=llvm-objdump
         export STRIP=llvm-strip
 
-        # Generate Configuration
-        make O=out aauw_t50_defconfig
-
-        # Build Kernel Image
+        # Generate configuration and build
+        make O=out custom_defconfig
         make O=out -j$(nproc)
 
-    - name: Upload Finished Kernel
+    - name: Upload Kernel Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: AAUW-T50-Kernel-Image
+        name: Custom-Kernel-Image
         path: |
           kernel-source/out/arch/arm64/boot/Image.gz
           kernel-source/out/arch/arm64/boot/Image.gz-dtb
