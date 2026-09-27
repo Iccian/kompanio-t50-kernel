@@ -1,0 +1,35 @@
+name: Build Tablet Kernel
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install Compilers
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev crossbuild-essential-arm64
+
+    - name: Clone MediaTek 4.19 Kernel Source
+      run: |
+        git clone https://googlesource.com --branch android-4.19-stable --depth=1 kernel-source
+
+    - name: Inject Tablet Blueprint
+      run: |
+        cp custom_defconfig kernel-source/arch/arm64/configs/aauw_t50_defconfig
+
+    - name: Compile Kernel
+      run: |
+        cd kernel-source
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- aauw_t50_defconfig
+        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+
+    - name: Upload Finished Kernel
+      uses: actions/upload-artifact@v4
+      with:
+        name: Finished-Kernel-Image
+        path: kernel-source/arch/arm64/boot/Image.gz
