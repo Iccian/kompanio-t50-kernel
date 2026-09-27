@@ -26,7 +26,10 @@ jobs:
 
     - name: Clone MediaTek MT6771 / Kompanio 500 Kernel Source
       run: |
-        git clone https://android.googlesource.com/kernel/common --branch android12-4.19-lts --depth=1 kernel-source
+        git clone https://android.googlesource.com/kernel/common kernel-source
+        cd kernel-source
+        git fetch --tags
+        git checkout android-4.19.191
 
     - name: Inject Tablet Blueprint (custom_defconfig)
       run: |
