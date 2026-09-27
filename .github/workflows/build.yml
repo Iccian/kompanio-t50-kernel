@@ -1,35 +1,68 @@
-name: Build Tablet Kernel
+name: Build Kompanio 500 / AAUW T50 Kernel
+
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
-    - name: Checkout Code
+    - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Install Compilers
+    - name: Install Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential bc bison flex libssl-dev libelf-dev crossbuild-essential-arm64
+        sudo apt-get install -y \
+          build-essential libncurses-dev bison flex libssl-dev libelf-dev \
+          crossbuild-essential-arm64 crossbuild-essential-armhf bc rsync \
+          git wget ccache libssl-dev python3 clang lld
 
-    - name: Clone MediaTek 4.19 Kernel Source
+    - name: Fetch Android Clang Toolchain (r383902 / Clang 11.0.1)
       run: |
-        git clone https://googlesource.com --branch android-4.19-stable --depth=1 kernel-source
+        mkdir -p clang-toolchain
+        git clone https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 --depth=1 --branch android-11.0.0_r1 clang-toolchain
 
-    - name: Inject Tablet Blueprint
+    - name: Clone MediaTek MT6771 / Kompanio 500 Kernel Source
       run: |
+        git clone https://android.googlesource.com/kernel/common --branch android-4.19-stable --depth=1 kernel-source
+
+    - name: Inject Tablet Blueprint (custom_defconfig)
+      run: |
+        mkdir -p kernel-source/arch/arm64/configs
         cp custom_defconfig kernel-source/arch/arm64/configs/aauw_t50_defconfig
 
     - name: Compile Kernel
       run: |
         cd kernel-source
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- aauw_t50_defconfig
-        make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc)
+        
+        # Export Environment Variables for Android Clang Build
+        export PATH="$(pwd)/../clang-toolchain/clang-r383902/bin:$PATH"
+        export ARCH=arm64
+        export SUBARCH=arm64
+        export CC=clang
+        export CLANG_TRIPLE=aarch64-linux-gnu-
+        export CROSS_COMPILE=aarch64-linux-gnu-
+        export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+        export LD=ld.lld
+        export AR=llvm-ar
+        export NM=llvm-nm
+        export OBJCOPY=llvm-objcopy
+        export OBJDUMP=llvm-objdump
+        export STRIP=llvm-strip
+
+        # Generate Configuration
+        make O=out aauw_t50_defconfig
+
+        # Build Kernel Image
+        make O=out -j$(nproc)
 
     - name: Upload Finished Kernel
       uses: actions/upload-artifact@v4
       with:
-        name: Finished-Kernel-Image
-        path: kernel-source/arch/arm64/boot/Image.gz
+        name: AAUW-T50-Kernel-Image
+        path: |
+          kernel-source/out/arch/arm64/boot/Image.gz
+          kernel-source/out/arch/arm64/boot/Image.gz-dtb
+          kernel-source/out/arch/arm64/boot/dtbo.img
